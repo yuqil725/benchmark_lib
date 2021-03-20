@@ -6,7 +6,7 @@ import requests
 import tensorflow as tf
 from tensorflow.keras.applications import VGG16
 
-from benchmark_constants import GPU_STATS
+from app.benchmark_constants import GPU_STATS
 
 # from tensorflow.keras.applications import InceptionResNetV2
 # from tensorflow.keras.applications import InceptionV3
