@@ -57,6 +57,16 @@ BENCHMARK = [
                 training_size=5000,
                 validation_split=0.1,
             ),
+            BenchmarkData(
+                data_name="vgg16_input32_batch4_optimizer-adam",
+                actual_time=24.97,
+                raw_model=VGG16,
+                trained_model_url="https://benchmark-models.s3.amazonaws.com/vgg16_input32_batch4_optimizer-adam.zip",
+                batch_size=4,
+                optimizer="adam",
+                training_size=5000,
+                validation_split=0.1,
+            ),
         ],
     )
 ]
