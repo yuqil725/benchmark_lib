@@ -1,75 +1,41 @@
+import json
 from typing import List
 from typing import NamedTuple
-from zipfile import ZipFile
 
-import requests
 import tensorflow as tf
-from benchmark_lib.app.benchmark_constants import GPU_STATS
+from tensorflow.keras.applications import InceptionResNetV2
+from tensorflow.keras.applications import InceptionV3
+from tensorflow.keras.applications import MobileNet
+from tensorflow.keras.applications import ResNet50V2
 from tensorflow.keras.applications import VGG16
+from tensorflow.keras.applications import Xception
 
-# from tensorflow.keras.applications import InceptionResNetV2
-# from tensorflow.keras.applications import InceptionV3
-# from tensorflow.keras.applications import MobileNet
-# from tensorflow.keras.applications import ResNet50V2
-
-# from tensorflow.keras.applications import Xception
+MODELS = {
+    "vgg16": VGG16,
+    "mobilenet_1": MobileNet,
+    "resnet50v2": ResNet50V2,
+    "xception": Xception,
+    "inception_resnet_v2": InceptionResNetV2,
+    "inception_v3": InceptionV3,
+}
+GPU_STATS = {
+    "T4": {"bandwidth": 298.08, "cores": 40, "clock": 1590},
+    "V100": {"bandwidth": 900, "cores": 5120, "clock": 1455},
+    "P100": {"bandwidth": 732, "cores": 3584, "clock": 1303},
+    "K80": {"bandwidth": 240, "cores": 2496, "clock": 875},
+}
+GDRIVE_PATH = "/content/drive/MyDrive/benchmark"
 
 
 class BenchmarkData(NamedTuple):
     data_name: str
     actual_time: float
     raw_model: tf.keras.Model
-    trained_model_url: str
+    trained_model_path: str
     batch_size: int
     optimizer: str
     training_size: int
     validation_split: float
-
-
-class BenchmarkConfig(NamedTuple):
-    gpu_type: str
-    tf_version: str
-    benchmark_data: List[BenchmarkData]
-
-
-BENCHMARK = [
-    BenchmarkConfig(
-        gpu_type="T4",
-        tf_version="2.4.1",
-        benchmark_data=[
-            BenchmarkData(
-                data_name="vgg16_input32_batch4_optimizer-sgd",
-                actual_time=21.59,
-                raw_model=VGG16,
-                trained_model_url="https://benchmark-models.s3.amazonaws.com/vgg16_input32_batch4_optimizer-sgd.zip",
-                batch_size=4,
-                optimizer="sgd",
-                training_size=5000,
-                validation_split=0.1,
-            ),
-            BenchmarkData(
-                data_name="vgg16_input32_batch4_optimizer-adam",
-                actual_time=24.97,
-                raw_model=VGG16,
-                trained_model_url="https://benchmark-models.s3.amazonaws.com/vgg16_input32_batch4_optimizer-adam.zip",
-                batch_size=4,
-                optimizer="adam",
-                training_size=5000,
-                validation_split=0.1,
-            ),
-            BenchmarkData(
-                data_name="vgg16_input32_batch4_optimizer-adam",
-                actual_time=24.97,
-                raw_model=VGG16,
-                trained_model_url="https://benchmark-models.s3.amazonaws.com/vgg16_input32_batch4_optimizer-adam.zip",
-                batch_size=4,
-                optimizer="adam",
-                training_size=5000,
-                validation_split=0.1,
-            ),
-        ],
-    )
-]
 
 
 def run_benchmark(
@@ -80,38 +46,57 @@ def run_benchmark(
     parse_cnn_func,
     predictor_func,
 ):
+    actual_tt_json_path = f"{GDRIVE_PATH}/{gpu_type}-{tf_version}/trained_tt.json"
+    benchmark = _load_benchmark(gpu_type, tf_version, actual_tt_json_path)
+
     results = {}
-    for bmconfig in BENCHMARK:
-        if bmconfig.gpu_type == gpu_type and bmconfig.tf_version == tf_version:
-            for bmdata in bmconfig.benchmark_data:
-                trained_model = _download_saved_model_and_load(
-                    bmdata.trained_model_url, bmdata.data_name
-                )
-                parsed_model = parse_cnn_func(trained_model.layers)
-                layer_names, layer_predictions = predictor_func(
-                    parsed_model,
-                    bmdata.batch_size,
-                    bmdata.optimizer,
-                    GPU_STATS[bmconfig.gpu_type],
-                    model_file,
-                    scaler,
-                )
-                iterations = (bmdata.training_size / bmdata.batch_size) * (
-                    1 - bmdata.validation_split
-                )
-                predicted_time = round(sum(layer_predictions) * iterations / 1000, 2)
-                results[bmdata.data_name] = {
-                    "actual_time": bmdata.actual_time,
-                    "predicted_time": predicted_time,
-                }
+    for bmdata in benchmark:
+        trained_model = trained_model = tf.keras.models.load_model(
+            bmdata.trained_model_path
+        )
+        parsed_model = parse_cnn_func(trained_model.layers)
+        layer_names, layer_predictions = predictor_func(
+            parsed_model,
+            bmdata.batch_size,
+            bmdata.optimizer,
+            GPU_STATS[gpu_type],
+            model_file,
+            scaler,
+        )
+        iterations = (bmdata.training_size / bmdata.batch_size) * (
+            1 - bmdata.validation_split
+        )
+        predicted_time = round(sum(layer_predictions) * iterations / 1000, 2)
+        results[bmdata.data_name] = {
+            "actual_time": bmdata.actual_time,
+            "predicted_time": predicted_time,
+        }
     return results
 
 
-def _download_saved_model_and_load(url: str, model_name):
-    r = requests.get(url)
-    zip_name = f"{model_name}.zip"
-    open(zip_name, "wb").write(r.content)
-    with ZipFile(zip_name, "r") as zipObj:
-        zipObj.extractall()
-        trained_model = tf.keras.models.load_model(model_name)
-        return trained_model
+def _load_benchmark(
+    gpu_type: str, tf_version: str, actual_tt_json_path: str
+) -> List[BenchmarkData]:
+
+    with open(actual_tt_json_path) as f:
+        actual_tt_json = json.load(f)
+
+    benchmark = []
+    for model_name, raw_model in MODELS.items():
+        if model_name not in actual_tt_json:
+            continue
+        train_tt_model_data = actual_tt_json[model_name]
+        for data_name, stats in train_tt_model_data.items():
+            bmdata = BenchmarkData(
+                data_name=data_name,
+                actual_time=stats["actual_time"],
+                raw_model=raw_model,
+                trained_model_path=f"{GDRIVE_PATH}/{gpu_type}-{tf_version}/saved_models/{data_name}",
+                batch_size=stats["batch_size"],
+                optimizer=stats["optimizer"],
+                training_size=stats["training_size"],
+                validation_split=stats["validation_split"],
+            )
+            benchmark.append(bmdata)
+
+    return benchmark
