@@ -1,13 +1,12 @@
 import json
 import os
-import platform
-import subprocess
 from typing import List
 from typing import NamedTuple
 
 import tensorflow as tf
 
-from constant import GDRIVE_PATH, SUPPORT_GPU_TYPES
+from check_environment import check_env_info
+from constant import GDRIVE_PATH
 from model_data_util.model_data_util.create_tt_data.model_data_convert import convertRawDataToModel
 
 
@@ -31,28 +30,6 @@ class BenchmarkData(NamedTuple):
     training_size: int
 
 
-def _check_env_info():
-    sp = subprocess.Popen(['nvidia-smi'], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-
-    out_str = sp.communicate()
-    out_list = str(out_str[0]).split('\\n')
-
-    split_res = out_list[2].split()
-    env = {}
-    assert split_res[3].lower() == "driver"
-    env["drive_v"] = split_res[5]
-    assert split_res[6].lower() == "cuda"
-    env["cuda_v"] = split_res[8]
-    split_res = out_list[8].split()
-    gpu_type = "_".join(split_res[2:4]).lower()
-    assert gpu_type in SUPPORT_GPU_TYPES
-    env["gpu_type"] = gpu_type
-    env["tf_v"] = tf.__version__
-    env["cpu"] = platform.processor()
-
-    return env
-
-
 def run_benchmark(
         tt_predictor: tf.keras.Model,
         get_feature_func,
@@ -68,11 +45,13 @@ def run_benchmark(
     :param gdrive_path: the path to the benchmark model file, in default is "/content/drive/MyDrive/benchmark"
     :return: benchmark data object
     """
+    env_fname = "_".join(list(check_env_info().values()))
+    env_path = os.path.join(gdrive_path, env_fname)
     if model_types is None:
-        model_types == [x for x in os.listdir(GDRIVE_PATH) if os.path.isdir(x)]
+        model_types = [x for x in os.listdir(env_path) if os.path.isdir(x)]
     for model_type in model_types:
-        actual_tt_json_path = f"{gdrive_path}/{model_type}/trained_tt.json"
-        benchmarks = _load_benchmark(gpu_type, tf_version, actual_tt_json_path)
+        actual_tt_json_path = os.path.join(env_path, model_type, "trained_tt.json")
+        benchmarks = _load_benchmark(actual_tt_json_path)
 
     result = {}
     for bmmodel in benchmarks:
@@ -94,7 +73,7 @@ def _load_benchmark(
         model_name1:{
             model_df: df,
             actual_tt: {mean: , median: , std:}
-            fit_info: {batch_size: , optimizer: , validation_split: , verbose: }
+            fit_kwargs: {batch_size: , optimizer: , validation_split: , verbose: }
         }
 
     :param actual_tt_json_path:
@@ -106,8 +85,8 @@ def _load_benchmark(
     benchmarks = []
     for model_name, stat in actual_tt_json.items():
         bmdata = BenchmarkData()
-        assert list(bmdata.fit_kwargs.keys()) == list(stat["fit_info"].keys())
-        bmdata.fit_kwargs = stat["fit_info"]
+        assert list(bmdata.fit_kwargs.keys()) == list(stat["fit_kwargs"].keys())
+        bmdata.fit_kwargs = stat["fit_kwargs"]
         assert list(bmdata.actual_tt.keys()) == list(stat["actual_tt"].keys())
         bmdata.actual_tt = stat["actual_tt"]
         bmdata.model_info["raw_model"], bmdata.training_size = convertRawDataToModel(stat["model_df"])
