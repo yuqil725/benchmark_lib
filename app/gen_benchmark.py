@@ -18,7 +18,7 @@ class BenchmarkDataMini(NamedTuple):
                  actual_tt_std: float,
                  batch_size: int,
                  validation_split: float,
-                 verbose=Flase
+                 verbose=False
                  ):
         self.model_info: dict
         self.model_info["raw_model"]: tf.keras.Model = raw_model
