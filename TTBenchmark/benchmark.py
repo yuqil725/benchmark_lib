@@ -1,33 +1,33 @@
 import json
 import os
 from typing import List
-from typing import NamedTuple
 
 import tensorflow as tf
 from model_data_util.create_tt_data.model_data_convert import convertRawDataToModel
 
-from check_environment import check_env_info
-from constant import GDRIVE_PATH
+from TTBenchmark.check_environment import check_env_info
+from TTBenchmark.constant import GDRIVE_PATH
 
 
-class BenchmarkData(NamedTuple):
+class BenchmarkData:
     # model
-    model_info: dict
-    model_info["model_name"]: str
-    model_info["raw_model"]: tf.keras.Model
-    # tt
-    actual_tt: dict
-    actual_tt["mean"]: float
-    actual_tt["median"]: float
-    actual_tt["std"]: float
-    # fit_info
-    fit_kwargs: dict
-    fit_kwargs["batch_size"]: int
-    fit_kwargs["optimizer"]: str
-    fit_kwargs["validation_split"]: float
-    fit_kwargs["verbose"]: bool
-    # data
-    training_size: int
+    def __init__(self):
+        self.model_info: dict = {}
+        self.model_info["model_name"]: str
+        self.model_info["raw_model"]: tf.keras.Model
+        # tt
+        self.actual_tt: dict = {}
+        self.actual_tt["mean"]: float
+        self.actual_tt["median"]: float
+        self.actual_tt["std"]: float
+        # fit_info
+        self.fit_kwargs: dict = {}
+        self.fit_kwargs["batch_size"]: int
+        self.fit_kwargs["optimizer"]: str
+        self.fit_kwargs["validation_split"]: float
+        self.fit_kwargs["verbose"]: bool
+        # data
+        self.training_size: int
 
 
 def run_benchmark(

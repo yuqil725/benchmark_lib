@@ -1,7 +1,7 @@
 import platform
 import subprocess
 
-from constant import SUPPORT_GPU_TYPES
+from TTBenchmark.constant import SUPPORT_GPU_TYPES
 
 
 def check_env_info():

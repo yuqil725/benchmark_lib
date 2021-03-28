@@ -1,0 +1,15 @@
+Metadata-Version: 1.2
+Name: TTBenchmark
+Version: 0.0.0.6
+Summary: AIpaca TT benchmark
+Home-page: UNKNOWN
+Author: Yuqi Li
+Author-email: yuqil@aipaca-corp.com
+License: UNKNOWN
+Description: used to quickly test the performance of TT predictor for various models
+Platform: UNKNOWN
+Classifier: Programming Language :: Python :: 3
+Classifier: Operating System :: MacOS :: MacOS X
+Classifier: Operating System :: Microsoft :: Windows
+Classifier: License :: OSI Approved :: MIT License
+Requires-Python: >=3.7

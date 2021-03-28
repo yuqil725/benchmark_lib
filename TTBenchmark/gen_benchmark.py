@@ -5,8 +5,8 @@ import os
 import tensorflow as tf
 from model_data_util.create_tt_data.model_data_convert import convertModelToRawData
 
-from app.check_environment import check_env_info
-from constant import GDRIVE_PATH
+from TTBenchmark.check_environment import check_env_info
+from TTBenchmark.constant import GDRIVE_PATH
 
 
 class BenchmarkDataMini():
@@ -19,16 +19,19 @@ class BenchmarkDataMini():
                  validation_split: float,
                  verbose=False
                  ):
-        self.model_info: dict
-        self.model_info["raw_model"]: tf.keras.Model = raw_model
-        self.actual_tt: dict
-        self.actual_tt["mean"]: float = actual_tt_mean
-        self.actual_tt["median"]: float = actual_tt_median
-        self.actual_tt["std"]: float = actual_tt_std
-        self.fit_kwargs: dict
-        self.fit_kwargs["batch_size"]: int = batch_size
-        self.fit_kwargs["validation_split"]: float = validation_split
-        self.fit_kwargs["verbose"]: bool = verbose
+        self.model_info: dict = {
+            "raw_model": raw_model
+        }
+        self.actual_tt: dict = {
+            "mean": actual_tt_mean,
+            "median": actual_tt_median,
+            "std": actual_tt_std
+        }
+        self.fit_kwargs: dict = {
+            "batch_size": batch_size,
+            "validation_split": validation_split,
+            "verbose": verbose
+        }
 
 
 def _ensure_dir(file_path):
@@ -47,6 +50,7 @@ def save_benchmark(
         columns: list,
         model_type: str,
         gdrive_path=GDRIVE_PATH,
+        replace=False
 ):
     """
     save benchmarks into json structure:
@@ -66,7 +70,7 @@ def save_benchmark(
     actual_tt_json_path = os.path.join(env_path, model_type, "trained_tt.json")
     _ensure_dir(actual_tt_json_path)
     model_index = None
-    if not os.path.exists(actual_tt_json_path):
+    if not os.path.exists(actual_tt_json_path) or replace == True:
         actual_tt_json = collections.defaultdict(dict)
         _write_json(actual_tt_json, actual_tt_json_path)
         model_index = 0
