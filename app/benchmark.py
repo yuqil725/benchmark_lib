@@ -4,10 +4,10 @@ from typing import List
 from typing import NamedTuple
 
 import tensorflow as tf
+from model_data_util.create_tt_data.model_data_convert import convertRawDataToModel
 
 from check_environment import check_env_info
 from constant import GDRIVE_PATH
-from model_data_util.model_data_util.create_tt_data.model_data_convert import convertRawDataToModel
 
 
 class BenchmarkData(NamedTuple):

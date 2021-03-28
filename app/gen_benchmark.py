@@ -1,16 +1,15 @@
 import collections
 import json
 import os
-from typing import NamedTuple
 
 import tensorflow as tf
+from model_data_util.create_tt_data.model_data_convert import convertModelToRawData
 
 from app.check_environment import check_env_info
 from constant import GDRIVE_PATH
-from model_data_util.model_data_util.create_tt_data.model_data_convert import convertModelToRawData
 
 
-class BenchmarkDataMini(NamedTuple):
+class BenchmarkDataMini():
     def __init__(self,
                  raw_model: tf.keras.Model,
                  actual_tt_mean: float,
@@ -44,8 +43,7 @@ def _write_json(data, filename):
 
 
 def save_benchmark(
-        benchmarks: list(BenchmarkDataMini),
-
+        benchmarks_mini: list,
         columns: list,
         model_type: str,
         gdrive_path=GDRIVE_PATH,
@@ -57,7 +55,7 @@ def save_benchmark(
             actual_tt: {mean: , median: , std:}
             fit_info: {batch_size: , optimizer: , validation_split: , verbose: }
         }
-    :param benchmarks: 
+    :param benchmarks_mini: list of benchmark_mini
     :param columns: 
     :param model_type: 
     :param gdrive_path: 
@@ -74,7 +72,7 @@ def save_benchmark(
         model_index = 0
 
     with open(actual_tt_json_path) as f:
-        for bmdatamini in benchmarks:
+        for bmdatamini in benchmarks_mini:
             model = bmdatamini.model_info["raw_model"]
             actual_tt = bmdatamini.actual_tt
             fit_kwargs = bmdatamini.fit_kwargs
