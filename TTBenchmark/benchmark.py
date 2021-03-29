@@ -47,7 +47,8 @@ def run_benchmark(
         model_types: list = None,
         predict_type: str = "median",
         gdrive_path=GDRIVE_PATH,
-        env_path=None
+        env_path=None,
+        upper_limit_per_type=None
 ) -> dict:
     """
     :param tt_predictor: a model can predict training time
@@ -57,6 +58,8 @@ def run_benchmark(
     :param model_types: a list of model categories. If None, all models in the matched environment benchmark will be tested
     :param predict_type: must be one of the value "median", "mean", "std"
     :param gdrive_path: the path to the benchmark model file, in default is "/content/drive/MyDrive/benchmark"
+    :param env_path: environment directory path. Only specify value if not testing the current environment
+    :param upper_limit_per_type: the maximum number of benchmark acceptable per model type
     :return: benchmark data object
     """
     if env_path is None:
@@ -72,10 +75,12 @@ def run_benchmark(
     for model_type in model_types:
         print(f"Testing model type: {model_type}")
         actual_tt_json_path = os.path.join(env_path, model_type, "trained_tt.json")
-        benchmarks = _load_benchmark(actual_tt_json_path)
+        benchmarks = _load_benchmark(actual_tt_json_path, upper_limit_per_type)
         kwargs["model_type"] = model_type
         kwargs["actual_tt_json_path"] = actual_tt_json_path
-        for bmmodel in tqdm(benchmarks):
+        print("Start test...")
+        limit = upper_limit_per_type if upper_limit_per_type is not None else len(benchmarks)
+        for bmmodel in tqdm(benchmarks[:limit]):
             kwargs["batch_size"] = bmmodel.fit_kwargs["batch_size"]
             X = get_feature_func(bmmodel.model_info["raw_model"], bmmodel.data["x_shape"], kwargs)
             y_pred = tt_predictor.predict(X).flatten()
@@ -88,7 +93,8 @@ def run_benchmark(
 
 
 def _load_benchmark(
-        actual_tt_json_path: str
+        actual_tt_json_path: str,
+        upper_limit_per_type: int
 ) -> List[BenchmarkData]:
     """
     json structure:
@@ -105,7 +111,10 @@ def _load_benchmark(
         actual_tt_json = json.load(f)
 
     benchmarks = []
-    for model_name, stat in actual_tt_json.items():
+    print("loading benchmarks...")
+    if upper_limit_per_type is None:
+        upper_limit_per_type = len(list(actual_tt_json.keys()))
+    for model_name, stat in tqdm(list(actual_tt_json.items())[:upper_limit_per_type]):
         bmdata = BenchmarkData()
         bmdata.fit_kwargs = stat["fit_kwargs"]
         bmdata.actual_tt = stat["actual_tt"]
@@ -142,5 +151,6 @@ if __name__ == "__main__":
 
     one_hot_enc = pickle.load(open(os.path.join(model_path, "one_hot_enc.pkl"), "rb"))
     kwargs = {"one_hot_enc": one_hot_enc}
-    benchmarks = run_benchmark(tt_predictor, get_feature_func, gdrive_path=gdrive_path, kwargs=kwargs)
+    benchmarks = run_benchmark(tt_predictor, get_feature_func, gdrive_path=gdrive_path, kwargs=kwargs,
+                               upper_limit_per_type=None)
     print(benchmarks)
