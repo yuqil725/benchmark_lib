@@ -2,6 +2,7 @@ README.md
 setup.py
 TTBenchmark/__init__.py
 TTBenchmark/benchmark.py
+TTBenchmark/check_benchmark.py
 TTBenchmark/check_environment.py
 TTBenchmark/constant.py
 TTBenchmark/gen_benchmark.py

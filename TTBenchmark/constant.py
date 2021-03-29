@@ -14,4 +14,4 @@
 # }
 GDRIVE_PATH = "/content/drive/MyDrive/benchmark"
 
-SUPPORT_GPU_TYPES = {"tesla_k40", "tesla_k80", "tesla_p100", "tesla_t4", "tesla_v100"}
+SUPPORT_GPU_TYPES = {"tesla_k40", "tesla_k80", "tesla_p100", "tesla_t4", "tesla_v100", "tesla_v100-sxm2"}

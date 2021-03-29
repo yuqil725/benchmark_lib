@@ -2,6 +2,8 @@ import json
 import os
 from typing import List
 
+import numpy as np
+import pandas as pd
 import tensorflow as tf
 from model_data_util.create_tt_data.model_data_convert import convertRawDataToModel
 
@@ -23,11 +25,11 @@ class BenchmarkData:
         # fit_info
         self.fit_kwargs: dict = {}
         self.fit_kwargs["batch_size"]: int
-        self.fit_kwargs["optimizer"]: str
         self.fit_kwargs["validation_split"]: float
         self.fit_kwargs["verbose"]: bool
         # data
-        self.training_size: int
+        self.data: dict = {}
+        self.data["x_shape"]: np.array
 
 
 def run_benchmark(
@@ -85,11 +87,17 @@ def _load_benchmark(
     benchmarks = []
     for model_name, stat in actual_tt_json.items():
         bmdata = BenchmarkData()
-        assert list(bmdata.fit_kwargs.keys()) == list(stat["fit_kwargs"].keys())
         bmdata.fit_kwargs = stat["fit_kwargs"]
-        assert list(bmdata.actual_tt.keys()) == list(stat["actual_tt"].keys())
         bmdata.actual_tt = stat["actual_tt"]
-        bmdata.model_info["raw_model"], bmdata.training_size = convertRawDataToModel(stat["model_df"])
+        bmdata.model_info["raw_model"], training_size, batch_input_shape = convertRawDataToModel(
+            pd.DataFrame(stat["model_df"]))
+        bmdata.data["x_shape"] = np.array([training_size, *batch_input_shape[1:]])
         bmdata.model_info["model_name"] = model_name
         benchmarks.append(bmdata)
     return benchmarks
+
+
+if __name__ == "__main__":
+    benchmarks = _load_benchmark(
+        "/Users/wangqiong/Documents/AIpaca/Code/TT Prediction/benchmark/benchmark_lib/local_data/2.4.1_i386/ffnn_dense_only/trained_tt.json")
+    print(benchmarks)
