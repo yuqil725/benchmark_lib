@@ -24,7 +24,7 @@ def check_env_info():
         assert split_res[6].lower() == "cuda"
         env["cuda_v"] = split_res[8]
         split_res = out_list[8].split()
-        gpu_type = [x for x in "_".join(split_res[2:4]).lower() if x != '.']
+        gpu_type = "".join([x for x in "_".join(split_res[2:4]).lower() if x != '.'])
         assert gpu_type in SUPPORT_GPU_TYPES
         env["gpu_type"] = gpu_type
     env["tf_v"] = tf.__version__
