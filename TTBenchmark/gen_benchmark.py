@@ -5,10 +5,14 @@ import os
 import numpy as np
 import tensorflow as tf
 from model_data_util.create_tt_data.model_data_convert import convertModelToRawData, convertRawDataToModel
-from tqdm import tqdm
 
-from TTBenchmark.check_environment import check_env_info
+from TTBenchmark.check_environment import check_env_info, in_notebook
 from TTBenchmark.constant import GDRIVE_PATH
+
+if in_notebook():
+    from tqdm.notebook import tqdm
+else:
+    from tqdm import tqdm
 
 
 class BenchmarkDataMini():
@@ -50,6 +54,13 @@ def _write_json(data, filename):
         json.dump(data, f, indent=4)
 
 
+def _get_benchmark_path(gdrive_path, model_type, fname="trained_tt.json"):
+    env_fname = "_".join(list(check_env_info().values()))
+    env_path = os.path.join(gdrive_path, env_fname)
+    actual_tt_json_path = os.path.join(env_path, model_type, fname)
+    return actual_tt_json_path
+
+
 def save_benchmark(
         benchmarks_mini: list,
         columns: list,
@@ -70,9 +81,7 @@ def save_benchmark(
     :param gdrive_path: 
     :return: 
     """
-    env_fname = "_".join(list(check_env_info().values()))
-    env_path = os.path.join(gdrive_path, env_fname)
-    actual_tt_json_path = os.path.join(env_path, model_type, "trained_tt.json")
+    actual_tt_json_path = _get_benchmark_path(gdrive_path, model_type)
     _ensure_dir(actual_tt_json_path)
     model_index = None
     if not os.path.exists(actual_tt_json_path) or replace == True:
@@ -82,19 +91,21 @@ def save_benchmark(
 
     with open(actual_tt_json_path) as f:
         actual_tt_json = json.load(f)
-        for bmdatamini in tqdm(benchmarks_mini):
+        for i, bmdatamini in enumerate(tqdm(benchmarks_mini)):
             model = bmdatamini.model_info["raw_model"]
             actual_tt = bmdatamini.actual_tt
             fit_kwargs = bmdatamini.fit_kwargs
             x_shape = bmdatamini.data['x_shape']
 
-            if model_index is None:
+            if model_index is None and i == 1:
                 all_models = list(actual_tt_json.keys())
                 if len(all_models) > 0:
                     model_index = int(max(all_models).split("_")[-1]) + 1
                 else:
                     # empty json file
                     model_index = 0
+            else:
+                model_index += 1
 
             model_name = f"{model_type}_{model_index}"
 
@@ -118,14 +129,14 @@ if __name__ == "__main__":
     import pandas as pd
 
     res = pickle.load(open(
-        "/Users/wangqiong/Documents/AIpaca/Code/TT Prediction/benchmark/benchmark_lib/local_data/ffnn_data_V100_tmp.pkl",
+        "/Users/wangqiong/Documents/AIpaca/Code/TT Prediction/benchmark/benchmark_lib/local_data/ffnn_data_V100_benchmark.pkl",
         "rb"))
 
     benchmarks_mini = []
     res['X_df'] = [pd.DataFrame(x_df) for x_df in res['X_df']]
     columns = res['X_df'][0].columns
     model_type = "ffnn_dense_only"
-    for i, X_df in enumerate(tqdm(res['X_df'][:])):
+    for i, X_df in enumerate(tqdm(res['X_df'][:10])):
         X_df = pd.DataFrame(X_df)
         model, training_size, batch_input_shape = convertRawDataToModel(X_df)
         x_shape = np.array([training_size, *batch_input_shape[1:]])

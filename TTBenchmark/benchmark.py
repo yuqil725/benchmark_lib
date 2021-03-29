@@ -1,14 +1,22 @@
+import collections
 import json
 import os
+import pickle
 from typing import List
 
 import numpy as np
 import pandas as pd
 import tensorflow as tf
-from model_data_util.create_tt_data.model_data_convert import convertRawDataToModel
+from model_data_util.create_tt_data.model_data_convert import convertRawDataToModel, convertModelToRawData, \
+    preprocessRawData
 
-from TTBenchmark.check_environment import check_env_info
+from TTBenchmark.check_environment import check_env_info, in_notebook
 from TTBenchmark.constant import GDRIVE_PATH
+
+if in_notebook():
+    from tqdm.notebook import tqdm
+else:
+    from tqdm import tqdm
 
 
 class BenchmarkData:
@@ -35,34 +43,46 @@ class BenchmarkData:
 def run_benchmark(
         tt_predictor: tf.keras.Model,
         get_feature_func,
+        kwargs: dict = {},
         model_types: list = None,
         predict_type: str = "median",
         gdrive_path=GDRIVE_PATH,
+        env_path=None
 ) -> dict:
     """
     :param tt_predictor: a model can predict training time
     :param get_feature_func: a function used to grab features from tensorflow models
+    :param kwargs: by default, all arguments (except get_feature_func and kwargs) passed into run_benchmarks will be added into kwargs;
+    additional argument such as batch_input_shape will also be added
     :param model_types: a list of model categories. If None, all models in the matched environment benchmark will be tested
     :param predict_type: must be one of the value "median", "mean", "std"
     :param gdrive_path: the path to the benchmark model file, in default is "/content/drive/MyDrive/benchmark"
     :return: benchmark data object
     """
-    env_fname = "_".join(list(check_env_info().values()))
-    env_path = os.path.join(gdrive_path, env_fname)
+    if env_path is None:
+        env_fname = "_".join(list(check_env_info().values()))
+        env_path = os.path.join(gdrive_path, env_fname)
     if model_types is None:
-        model_types = [x for x in os.listdir(env_path) if os.path.isdir(x)]
+        model_types = [x for x in os.listdir(env_path) if os.path.isdir(os.path.join(env_path, x))]
+
+    result = collections.defaultdict(dict)
+    kwargs["tt_predictor"] = tt_predictor
+    kwargs["predict_type"] = predict_type
+    kwargs["gdrive_path"] = gdrive_path
     for model_type in model_types:
+        print(f"Testing model type: {model_type}")
         actual_tt_json_path = os.path.join(env_path, model_type, "trained_tt.json")
         benchmarks = _load_benchmark(actual_tt_json_path)
-
-    result = {}
-    for bmmodel in benchmarks:
-        X = get_feature_func(bmmodel.model_info["raw_model"], bmmodel.training_size)
-        y_pred = tt_predictor.predict(X)
-        result[bmmodel.model_info["model_name"]] = {}
-        result[bmmodel.model_info["model_name"]]["tt_pred"] = y_pred
-        assert predict_type in bmmodel.actual_tt, f"predict_type must be one of the value {list(bmmodel.actual_tt.keys())}"
-        result[bmmodel.model_info["model_name"]]["tt_actual"] = bmmodel.actual_tt[predict_type]
+        kwargs["model_type"] = model_type
+        kwargs["actual_tt_json_path"] = actual_tt_json_path
+        for bmmodel in tqdm(benchmarks):
+            kwargs["batch_size"] = bmmodel.fit_kwargs["batch_size"]
+            X = get_feature_func(bmmodel.model_info["raw_model"], bmmodel.data["x_shape"], kwargs)
+            y_pred = tt_predictor.predict(X).flatten()
+            result[model_type][bmmodel.model_info["model_name"]] = {}
+            result[model_type][bmmodel.model_info["model_name"]]["tt_pred"] = y_pred
+            assert predict_type in bmmodel.actual_tt, f"predict_type must be one of the value {list(bmmodel.actual_tt.keys())}"
+            result[model_type][bmmodel.model_info["model_name"]]["tt_actual"] = bmmodel.actual_tt[predict_type]
 
     return result
 
@@ -98,6 +118,29 @@ def _load_benchmark(
 
 
 if __name__ == "__main__":
-    benchmarks = _load_benchmark(
-        "/Users/wangqiong/Documents/AIpaca/Code/TT Prediction/benchmark/benchmark_lib/local_data/2.4.1_i386/ffnn_dense_only/trained_tt.json")
+    def get_feature_func(model, x_shape, kwargs):
+        training_size = x_shape[0]
+        actual_tt_json_path = kwargs["actual_tt_json_path"]
+        actual_tt_json = json.load(open(actual_tt_json_path))
+        random_key = list(actual_tt_json.keys())[0]
+        columns = list(actual_tt_json[random_key]["model_df"].keys())
+
+        padding = kwargs["tt_predictor"].layers[0].input_shape[1]
+
+        batch_input_shape = np.array([kwargs["batch_size"], *x_shape[1:]])
+        df = convertModelToRawData(model, columns, training_size, batch_input_shape)
+        X = preprocessRawData(df, kwargs["one_hot_enc"], padding).values
+        X = X.reshape((-1, *X.shape))
+        return X
+
+
+    model_type = "ffnn_dense_only"
+    gdrive_path = GDRIVE_PATH
+    model_path = "/Users/wangqiong/Documents/AIpaca/Code/TT Prediction/benchmark/benchmark_lib/local_data/model"
+    gdrive_path = "/Users/wangqiong/Documents/AIpaca/Code/TT Prediction/benchmark/benchmark_lib/local_data"
+    tt_predictor = tf.keras.models.load_model(model_path)
+
+    one_hot_enc = pickle.load(open(os.path.join(model_path, "one_hot_enc.pkl"), "rb"))
+    kwargs = {"one_hot_enc": one_hot_enc}
+    benchmarks = run_benchmark(tt_predictor, get_feature_func, gdrive_path=gdrive_path, kwargs=kwargs)
     print(benchmarks)
