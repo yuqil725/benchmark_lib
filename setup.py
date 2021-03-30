@@ -1,6 +1,6 @@
 from setuptools import setup, find_packages
 
-VERSION = "0.0.1.5.9.9.1"
+VERSION = "0.0.1.6"
 DESCRIPTION = "AIpaca TT benchmark"
 LONG_DESCRIPTION = (
     "used to quickly test the performance of TT predictor for various models"

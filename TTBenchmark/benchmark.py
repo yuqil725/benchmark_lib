@@ -2,6 +2,7 @@ import collections
 import json
 import os
 import pickle
+from time import time
 from typing import List
 
 import numpy as np
@@ -128,6 +129,7 @@ def _load_benchmark(
 
 if __name__ == "__main__":
     def get_feature_func(model, x_shape, kwargs):
+        time0 = time()
         training_size = x_shape[0]
         actual_tt_json_path = kwargs["actual_tt_json_path"]
         actual_tt_json = json.load(open(actual_tt_json_path))
@@ -148,7 +150,6 @@ if __name__ == "__main__":
     model_path = "/Users/wangqiong/Documents/AIpaca/Code/TT Prediction/benchmark/benchmark_lib/local_data/model"
     gdrive_path = "/Users/wangqiong/Documents/AIpaca/Code/TT Prediction/benchmark/benchmark_lib/local_data"
     tt_predictor = tf.keras.models.load_model(model_path)
-
     one_hot_enc = pickle.load(open(os.path.join(model_path, "one_hot_enc.pkl"), "rb"))
     kwargs = {"one_hot_enc": one_hot_enc}
     benchmarks = run_benchmark(tt_predictor, get_feature_func, gdrive_path=gdrive_path, kwargs=kwargs,
